@@ -9,12 +9,13 @@ const sqlite3 = require('sqlite3').verbose();
 
 const app = express();
 const jsonParser = bodyParser.json();
+const SECRET = 'shhhhh';
 
 app.use(express.static('public'));
 
 const DbAsync = (db, sql) => {
-  return new Promise(function(resolve, reject) {
-    db.all(sql, function(err, row) {
+  return new Promise(function (resolve, reject) {
+    db.all(sql, function (err, row) {
       if (err) reject(err);
       else resolve(row);
     });
@@ -92,7 +93,10 @@ async function onLogin(req, res) {
 
   try {
     const {
-      user: { email: u, password: p }
+      user: {
+        email: u,
+        password: p
+      }
     } = body;
 
     let found = false;
@@ -100,16 +104,17 @@ async function onLogin(req, res) {
       for (user of userList) {
         if (user.email === u && user.password === p) {
           // console.log('matched');
-          const token = jwt.sign(
-            {
+          const token = jwt.sign({
               exp: Math.floor(Date.now() / 1000) + 60 * 60,
               email: u,
               user_type: user.type
             },
-            'secret'
+            SECRET
           );
 
-          res.json({ Token: token });
+          res.json({
+            Token: token
+          });
           found = true;
           break;
         }
@@ -117,16 +122,36 @@ async function onLogin(req, res) {
     }
 
     if (!found) {
-      res.json({ status: 'failed', description: 'User/Password not matched' });
+      res.json({
+        status: 'fail',
+        description: 'User/Password not matched'
+      });
     }
   } catch (error) {
     console.log(error);
-    res.json({ status: 'failed', description: error });
+    res.json({
+      status: 'fail',
+      description: error
+    });
   }
 }
 app.post('/oauth/login', jsonParser, onLogin);
 
 async function onComparisonData(req, res) {
+  try {
+    const newToken = req.headers.token.replace("Bearer ", "");
+    // console.log(newToken);
+    const decoded = await jwt.verify(newToken, SECRET);
+    // console.log(decoded);
+  } catch (err) {
+    // console.log(err);
+    res.json({
+      status: 'fail',
+      reason: 'invalid token'
+    });
+    return;
+  }
+
   try {
     // const param = req.params;
     const start = moment(req.query.start)
@@ -160,7 +185,10 @@ async function onComparisonData(req, res) {
     res.json(data);
   } catch (error) {
     console.log('error:' + error);
-    res.json({ status: 'failed', description: error });
+    res.json({
+      status: 'fail',
+      reason: error
+    });
   }
 }
 app.get('/forecasts/comparisons', onComparisonData);
