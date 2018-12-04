@@ -184,7 +184,7 @@ async function onRegister(req, res) {
     }
 
     //check if one is a mananger
-    if (user.user_type >= 2) {
+    if (user.user_type > 2) {
       throw 'no permission';
     }
 
