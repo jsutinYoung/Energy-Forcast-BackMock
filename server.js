@@ -21,10 +21,35 @@ const DbAsync = (db, sql) => {
     });
   });
 };
+
+async function verifyToken(req) {
+  try {
+    const newToken = req.headers.token.replace('Bearer ', '');
+    // console.log(newToken);
+    const decoded = await jwt.verify(newToken, SECRET);
+    // console.log(decoded);
+    return decoded;
+  } catch (err) {
+    // console.log(err);
+    res.json({
+      status: 'fail',
+      reason: 'invalid token'
+    });
+    return null;
+  }
+}
+
+async function getDB(mode) {
+  const m = mode ? mode : sqlite3.OPEN_READONLY;
+
+  return await new sqlite3.Database('./data/comparisons.db', m, err => {
+    if (err) {
+      console.error(err.message);
+    }
+  });
+}
 //....................................................................................
 async function startServer() {
-  // app.get('/', (req, res) => res.send('Ready'));
-
   // createDB();
   app.listen(8000, () => console.log('express listening on port 8000...'));
 }
@@ -98,14 +123,22 @@ async function onLogin(req, res) {
 
     let found = false;
     if (u && p) {
-      for (user of userList) {
-        if (user.email === u && user.password === p) {
-          // console.log('matched');
+      const db = await getDB();
+      const sql = `SELECT email, password ,type
+          FROM users
+          WHERE email = "${u}"`;
+
+      const rows = await DbAsync(db, sql);
+      db.close();
+
+      if (rows && rows.length > 0) {
+        const record = rows[0];
+        if (p === record.password) {
           const token = jwt.sign(
             {
               exp: Math.floor(Date.now() / 1000) + 60 * 60,
               email: u,
-              user_type: user.type
+              user_type: record.type
             },
             SECRET
           );
@@ -114,7 +147,6 @@ async function onLogin(req, res) {
             Token: token
           });
           found = true;
-          break;
         }
       }
     }
@@ -126,7 +158,6 @@ async function onLogin(req, res) {
       });
     }
   } catch (error) {
-    console.log(error);
     res.json({
       status: 'fail',
       description: error
@@ -137,17 +168,9 @@ app.post('/oauth/login', jsonParser, onLogin);
 //....................................................................................
 async function onRegister(req, res) {
   const body = req.body;
-  try {
-    const newToken = req.headers.token.replace('Bearer ', '');
-    // console.log(newToken);
-    const decoded = await jwt.verify(newToken, SECRET);
-    // console.log(decoded);
-  } catch (err) {
-    // console.log(err);
-    res.json({
-      status: 'fail',
-      reason: 'invalid token'
-    });
+
+  const user = await verifyToken(req);
+  if (!user) {
     return;
   }
 
@@ -156,12 +179,40 @@ async function onRegister(req, res) {
       user: { email: u, password: p, user_type: t }
     } = body;
 
+    if (t === 1) {
+      throw 'cannot create admin user';
+    }
+
+    //check if one is a mananger
+    if (user.user_type >= 2) {
+      throw 'no permission';
+    }
+
+    const db = await getDB(sqlite3.OPEN_READWRITE);
+    // db.exec('BEGIN');
+    // const stmt = db.prepare('INSERT INTO users VALUES (?,?,?)');
+    // stmt.run(u, p, t);
+    // stmt.finalize();
+    // db.exec('COMMIT');
+
+    const result = await new Promise(function(resolve, reject) {
+      db.run(`INSERT INTO users(email,password,type) VALUES(?,?,?)`, [u, p, t], function(err) {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    db.close();
+
     res.json({
       status: 'ok',
       description: ''
     });
   } catch (error) {
-    console.log(error);
+    if (error.code === 'SQLITE_CONSTRAINT') {
+      error = 'email already exists';
+    }
+    // console.log(error);
     res.json({
       status: 'fail',
       description: error
@@ -171,17 +222,7 @@ async function onRegister(req, res) {
 app.post('/users/create', jsonParser, onRegister);
 //....................................................................................
 async function onComparisonData(req, res) {
-  try {
-    const newToken = req.headers.token.replace('Bearer ', '');
-    // console.log(newToken);
-    const decoded = await jwt.verify(newToken, SECRET);
-    // console.log(decoded);
-  } catch (err) {
-    // console.log(err);
-    res.json({
-      status: 'fail',
-      reason: 'invalid token'
-    });
+  if (!(await verifyToken(req))) {
     return;
   }
 
@@ -194,13 +235,7 @@ async function onComparisonData(req, res) {
       .toDate()
       .getTime();
 
-    const db = await new sqlite3.Database('./data/comparisons.db', sqlite3.OPEN_READONLY, err => {
-      if (err) {
-        console.error(err.message);
-      }
-      // console.log('Connected to the forecast database.');
-    });
-
+    const db = await getDB();
     const sql = `SELECT hour, forecast, baseline, stderr
         FROM comparisons WHERE hour
         BETWEEN "${start}" AND "${end}"
@@ -217,7 +252,7 @@ async function onComparisonData(req, res) {
     db.close();
     res.json(data);
   } catch (error) {
-    console.log('error:' + error);
+    // console.log('error:' + error);
     res.json({
       status: 'fail',
       reason: error
@@ -226,6 +261,7 @@ async function onComparisonData(req, res) {
 }
 app.get('/forecasts/comparisons', onComparisonData);
 
+//....................................................................................
 async function onDefault(req, res) {
   res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
 }
