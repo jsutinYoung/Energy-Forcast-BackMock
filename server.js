@@ -12,16 +12,16 @@ const jsonParser = bodyParser.json();
 const SECRET = 'shhhhh';
 
 app.use(express.static('public'));
-
+//....................................................................................
 const DbAsync = (db, sql) => {
-  return new Promise(function (resolve, reject) {
-    db.all(sql, function (err, row) {
+  return new Promise(function(resolve, reject) {
+    db.all(sql, function(err, row) {
       if (err) reject(err);
       else resolve(row);
     });
   });
 };
-
+//....................................................................................
 async function startServer() {
   // app.get('/', (req, res) => res.send('Ready'));
 
@@ -30,7 +30,7 @@ async function startServer() {
 }
 
 startServer();
-
+//....................................................................................
 async function createDB() {
   // console.log(moment('12-31-2017', 'MMDDYYYY').isoWeek());
   let DB = new sqlite3.Database(
@@ -87,16 +87,13 @@ async function createDB() {
     // console.log('Close the database connection.');
   });
 }
-
+//....................................................................................
 async function onLogin(req, res) {
   const body = req.body;
 
   try {
     const {
-      user: {
-        email: u,
-        password: p
-      }
+      user: { email: u, password: p }
     } = body;
 
     let found = false;
@@ -104,7 +101,8 @@ async function onLogin(req, res) {
       for (user of userList) {
         if (user.email === u && user.password === p) {
           // console.log('matched');
-          const token = jwt.sign({
+          const token = jwt.sign(
+            {
               exp: Math.floor(Date.now() / 1000) + 60 * 60,
               email: u,
               user_type: user.type
@@ -136,10 +134,45 @@ async function onLogin(req, res) {
   }
 }
 app.post('/oauth/login', jsonParser, onLogin);
+//....................................................................................
+async function onRegister(req, res) {
+  const body = req.body;
+  try {
+    const newToken = req.headers.token.replace('Bearer ', '');
+    // console.log(newToken);
+    const decoded = await jwt.verify(newToken, SECRET);
+    // console.log(decoded);
+  } catch (err) {
+    // console.log(err);
+    res.json({
+      status: 'fail',
+      reason: 'invalid token'
+    });
+    return;
+  }
 
+  try {
+    const {
+      user: { email: u, password: p, user_type: t }
+    } = body;
+
+    res.json({
+      status: 'ok',
+      description: ''
+    });
+  } catch (error) {
+    console.log(error);
+    res.json({
+      status: 'fail',
+      description: error
+    });
+  }
+}
+app.post('/users/create', jsonParser, onRegister);
+//....................................................................................
 async function onComparisonData(req, res) {
   try {
-    const newToken = req.headers.token.replace("Bearer ", "");
+    const newToken = req.headers.token.replace('Bearer ', '');
     // console.log(newToken);
     const decoded = await jwt.verify(newToken, SECRET);
     // console.log(decoded);
