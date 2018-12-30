@@ -16,15 +16,13 @@ app.use(express.static('public'));
 const DbAsync = (db, sql) => {
   return new Promise(function(resolve, reject) {
     db.all(sql, function(err, row) {
-      if (err)
-        reject(err);
-      else
-        resolve(row);
+      if (err) reject(err);
+      else resolve(row);
     });
   });
 };
 
-function verifyToken(req,res) {
+function verifyToken(req, res) {
   try {
     const newToken = req.headers.token.replace('Bearer ', '');
     // console.log(newToken);
@@ -33,7 +31,7 @@ function verifyToken(req,res) {
     return decoded;
   } catch (err) {
     // console.log(err);
-    res.json({status: 'fail', reason: 'invalid token'});
+    res.json({ status: 'fail', reason: 'invalid token' });
     return null;
   }
 }
@@ -54,25 +52,32 @@ async function startServer() {
 }
 
 startServer();
-function randomIntFromInterval(min, max)  // min and max included
-{
+function randomIntFromInterval(min, max) {
+  // min and max included
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 //....................................................................................
 async function createDB() {
   // console.log(moment('12-31-2017', 'MMDDYYYY').isoWeek());
   let DB = new sqlite3.Database(
-      './data/comparisons.db', sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
-      err => {
-        if (err) {
-          console.error(err.message);
-        }
-        // console.log('Connected to the forecast database.');
-      });
+    './data/comparisons.db',
+    sqlite3.OPEN_READWRITE | sqlite3.OPEN_CREATE,
+    err => {
+      if (err) {
+        console.error(err.message);
+      }
+      // console.log('Connected to the forecast database.');
+    }
+  );
 
   DB.serialize(() => {
     DB.run(
-        'CREATE TABLE IF NOT EXISTS comparisons (hour INTEGER PRIMARY KEY, forecast REAL, baseline REAL, stderr REAL, temperature REAL);');
+      'CREATE TABLE IF NOT EXISTS comparisons (hour INTEGER PRIMARY KEY, forecast REAL, baseline REAL, stderr REAL, temperature REAL);'
+    );
+
+    DB.run(
+      'CREATE TABLE `users` ( `email` TEXT NOT NULL, `password` TEXT NOT NULL, `type` INTEGER NOT NULL, PRIMARY KEY(`email`) )'
+    );
 
     let m = moment('01-01-2015 00:00:00', 'MM-DD-YYYY hh:mm:s');
 
@@ -89,12 +94,27 @@ async function createDB() {
         const variabtion2 = 1 + Math.floor(Math.random() * 11) / 100.0;
         const variabtion3 = 1 + Math.floor(Math.random() * 11) / 100.0;
 
+        let temp;
+        const month = m.month();
+        if (month >= 0 && month <= 2) {
+          temp = randomIntFromInterval(28, 45);
+        } else if (month >= 3 && month <= 5) {
+          temp = randomIntFromInterval(34, 52);
+        } else if (month >= 6 && month <= 8) {
+          temp = randomIntFromInterval(40, 105);
+        } else {
+          temp = randomIntFromInterval(38, 50);
+        }
+
         // hrs.push(aHour);
         const stmt = DB.prepare('INSERT INTO comparisons VALUES (?,?,?,?,?)');
         stmt.run(
-            h.getTime(), parseFloat(f) * variabtion1,
-            parseFloat(b) * variabtion2, parseFloat(e) * variabtion3,
-            randomIntFromInterval(30, 105));
+          h.getTime(),
+          parseFloat(f) * variabtion1,
+          parseFloat(b) * variabtion2,
+          parseFloat(e) * variabtion3,
+          temp
+        );
         stmt.finalize();
 
         // console.log(`${counter++}  ${h}`);
@@ -115,7 +135,9 @@ async function onLogin(req, res) {
   const body = req.body;
 
   try {
-    const {user: {email: u, password: p}} = body;
+    const {
+      user: { email: u, password: p }
+    } = body;
 
     let found = false;
     if (u && p) {
@@ -131,37 +153,39 @@ async function onLogin(req, res) {
         const record = rows[0];
         if (p === record.password) {
           const token = jwt.sign(
-              {
-                exp: Math.floor(Date.now() / 1000) + 60 * 60,
-                email: u,
-                user_type: record.type
-              },
-              SECRET);
+            {
+              exp: Math.floor(Date.now() / 1000) + 60 * 60,
+              email: u,
+              user_type: record.type
+            },
+            SECRET
+          );
 
-          res.json({Token: token});
+          res.json({ Token: token });
           found = true;
         }
       }
     }
 
     if (!found) {
-      res.json({status: 'fail', description: 'User/Password not matched'});
+      res.json({ status: 'fail', description: 'User/Password not matched' });
     }
   } catch (error) {
-    res.json({status: 'fail', description: error});
+    res.json({ status: 'fail', description: error });
   }
 }
 app.post('/oauth/login', jsonParser, onLogin);
 //....................................................................................
 async function onRegister(req, res) {
-
-  if (!(verifyToken(req,res))) {
+  if (!verifyToken(req, res)) {
     return;
   }
 
   const body = req.body;
   try {
-    const {user: {email: u, password: p, user_type: t}} = body;
+    const {
+      user: { email: u, password: p, user_type: t }
+    } = body;
 
     if (t === 1) {
       throw 'cannot create admin user';
@@ -180,38 +204,38 @@ async function onRegister(req, res) {
     // db.exec('COMMIT');
 
     const result = await new Promise(function(resolve, reject) {
-      db.run(
-          `INSERT INTO users(email,password,type) VALUES(?,?,?)`, [u, p, t],
-          function(err) {
-            if (err)
-              reject(err);
-            else
-              resolve();
-          });
+      db.run(`INSERT INTO users(email,password,type) VALUES(?,?,?)`, [u, p, t], function(err) {
+        if (err) reject(err);
+        else resolve();
+      });
     });
 
     db.close();
 
-    res.json({status: 'ok', description: ''});
+    res.json({ status: 'ok', description: '' });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT') {
       error = 'email already exists';
     }
     // console.log(error);
-    res.json({status: 'fail', description: error});
+    res.json({ status: 'fail', description: error });
   }
 }
 app.post('/users/create', jsonParser, onRegister);
 //....................................................................................
 async function onComparisonData(req, res) {
-  if (!(verifyToken(req,res))) {
+  if (!verifyToken(req, res)) {
     return;
   }
 
   try {
     // const param = req.params;
-    const start = moment(req.query.start).toDate().getTime();
-    const end = moment(req.query.end).toDate().getTime();
+    const start = moment(req.query.start)
+      .toDate()
+      .getTime();
+    const end = moment(req.query.end)
+      .toDate()
+      .getTime();
 
     const db = await getDB();
     const sql = `SELECT hour, forecast, baseline, stderr, temperature
@@ -231,7 +255,7 @@ async function onComparisonData(req, res) {
     res.json(data);
   } catch (error) {
     // console.log('error:' + error);
-    res.json({status: 'fail', reason: error});
+    res.json({ status: 'fail', reason: error });
   }
 }
 app.get('/forecasts/comparisons', onComparisonData);
