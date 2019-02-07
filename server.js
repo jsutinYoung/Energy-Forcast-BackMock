@@ -57,6 +57,32 @@ function randomIntFromInterval(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
 }
 //....................................................................................
+function mockData(m) {
+  const variabtion1 = 1 + Math.floor(Math.random() * 11) / 100.0;
+  const variabtion2 = 1 + Math.floor(Math.random() * 11) / 100.0;
+  const variabtion3 = 1 + Math.floor(Math.random() * 11) / 100.0;
+
+  let temp;
+  const month = m.month();
+  if (month >= 0 && month <= 2) {
+    temp = randomIntFromInterval(28, 45);
+  } else if (month >= 3 && month <= 5) {
+    temp = randomIntFromInterval(34, 52);
+  } else if (month >= 6 && month <= 8) {
+    temp = randomIntFromInterval(40, 105);
+  } else {
+    temp = randomIntFromInterval(38, 50);
+  }
+
+  return [variabtion1, variabtion2, variabtion3, temp];
+}
+
+function addUser(DB) {
+  DB.exec('BEGIN');
+  const stmt2 = DB.prepare('INSERT INTO users VALUES (?,?,?)');
+  stmt2.run('j@j.com', '111111', 2);
+  DB.exec('COMMIT');
+}
 async function createDB() {
   // console.log(moment('12-31-2017', 'MMDDYYYY').isoWeek());
   let DB = new sqlite3.Database(
@@ -76,50 +102,95 @@ async function createDB() {
     );
 
     DB.run(
-      'CREATE TABLE `users` ( `email` TEXT NOT NULL, `password` TEXT NOT NULL, `type` INTEGER NOT NULL, PRIMARY KEY(`email`) )'
+      'CREATE TABLE IF NOT EXISTS `users` ( `email` TEXT NOT NULL, `password` TEXT NOT NULL, `type` INTEGER NOT NULL, PRIMARY KEY(`email`) )'
     );
 
-    let m = moment('01-01-2015 00:00:00', 'MM-DD-YYYY hh:mm:s');
+    DB.run(
+      'CREATE TABLE IF NOT EXISTS `forecasts` (`time`	INTEGER NOT NULL UNIQUE,PRIMARY KEY(`time`))'
+    );
 
-    // let counter = 0;
-    for (let i = 1; i <= 262; i++) {
+    DB.run(
+      'CREATE TABLE IF NOT EXISTS `loads` ( `time` INTEGER, `actual` REAL, PRIMARY KEY(`time`))'
+    );
+
+    DB.run(
+      'CREATE TABLE IF NOT EXISTS `sevendays` ( `time` INTEGER, `forecast` REAL, `stderr` REAL, `temperature` REAL, `gen_time` INTEGER NOT NULL, FOREIGN KEY(`gen_time`) REFERENCES `forecasts`(`time`))'
+    );
+
+    DB.run(
+      'CREATE TABLE IF NOT EXISTS `sevendays` ( `time` INTEGER, `forecast` REAL, `stderr` REAL, `temperature` REAL, `gen_time` INTEGER NOT NULL, FOREIGN KEY(`gen_time`) REFERENCES `forecasts`(`time`))'
+    );
+
+    DB.run('CREATE INDEX `idx1` ON `sevendays` ( `gen_time`	ASC)');
+
+    addUser(DB);
+
+    let gen_date = moment('01-01-2017 00:00:00', 'MM-DD-YYYY hh:mm:s').utc();
+
+    for (let day = 1; day <= 1095; day++) {
+      // console.log(`${day}`);
+      // console.log(gen_date.local().format('YYYY-MM-DDTHH:mm:ss'))
+      // console.log(gen_date.toDate().getTime());
+
       DB.exec('BEGIN');
+
+      //execute this every day
+      let gen_time = gen_date.toDate().getTime();
+      let stmt1 = DB.prepare('INSERT INTO forecasts VALUES(?)');
+      stmt1.run(gen_time);
+      stmt1.finalize();
+
+      //produce 7 days forcast worth data
+      let gen_moment = gen_date.clone();
       for (let hr = 0; hr < 168; hr++) {
         [d, f, b, e] = sampleData[hr];
+        const h = gen_moment.toDate();
 
-        const h = m.add(1, 'hour').toDate();
-        // const aHour = [h, parseFloat(f), parseFloat(b), parseFloat(e)];
+        [variabtion1, variabtion2, variabtion3, temp] = mockData(gen_moment);
 
-        const variabtion1 = 1 + Math.floor(Math.random() * 11) / 100.0;
-        const variabtion2 = 1 + Math.floor(Math.random() * 11) / 100.0;
-        const variabtion3 = 1 + Math.floor(Math.random() * 11) / 100.0;
+        const stmt2 = DB.prepare('INSERT INTO sevendays VALUES (?,?,?,?,?)');
+        stmt2.run(
+          h.getTime(),
+          parseFloat(f) * variabtion1,
+          parseFloat(e) * variabtion3,
+          temp,
+          //foreign key
+          gen_time
+        );
 
-        let temp;
-        const month = m.month();
-        if (month >= 0 && month <= 2) {
-          temp = randomIntFromInterval(28, 45);
-        } else if (month >= 3 && month <= 5) {
-          temp = randomIntFromInterval(34, 52);
-        } else if (month >= 6 && month <= 8) {
-          temp = randomIntFromInterval(40, 105);
-        } else {
-          temp = randomIntFromInterval(38, 50);
-        }
+        gen_moment.add(1, 'hour');
+        stmt2.finalize();
+        // console.log(`${counter++}  ${h}`);
+      }
 
-        // hrs.push(aHour);
-        const stmt = DB.prepare('INSERT INTO comparisons VALUES (?,?,?,?,?)');
-        stmt.run(
+      // simulate 24 hr values
+      let m = gen_date.clone();
+      for (let hr = 0; hr < 24; hr++) {
+        [d, f, b, e] = sampleData[hr];
+        const h = m.toDate();
+
+        //loads table
+        [variabtion1, variabtion2, variabtion3, temp] = mockData(m);
+        let stmt3 = DB.prepare('INSERT INTO loads VALUES(?,?)');
+        stmt3.run(h.getTime(), parseFloat(b) * variabtion2);
+        stmt3.finalize();
+
+        //old comparisons table
+        const stmt4 = DB.prepare('INSERT INTO comparisons VALUES (?,?,?,?,?)');
+        stmt4.run(
           h.getTime(),
           parseFloat(f) * variabtion1,
           parseFloat(b) * variabtion2,
           parseFloat(e) * variabtion3,
           temp
         );
-        stmt.finalize();
 
-        // console.log(`${counter++}  ${h}`);
+        m.add(1, 'hour');
+        stmt4.finalize();
       }
+
       DB.exec('COMMIT');
+      gen_date.add(1, 'day');
     }
   });
 
@@ -224,16 +295,18 @@ async function onRegister(req, res) {
 app.post('/users/create', jsonParser, onRegister);
 //....................................................................................
 async function onComparisonData(req, res) {
-  if (!verifyToken(req, res)) {
-    return;
-  }
+  // if (!verifyToken(req, res)) {
+  //   return;
+  // }
 
   try {
     // const param = req.params;
     const start = moment(req.query.start)
+      .utc()
       .toDate()
       .getTime();
     const end = moment(req.query.end)
+      .utc()
       .toDate()
       .getTime();
 
@@ -259,6 +332,142 @@ async function onComparisonData(req, res) {
   }
 }
 app.get('/forecasts/comparisons', onComparisonData);
+//....................................................................................
+async function onForecastData(req, res) {
+  const local = req.query.local;
+  if (!local) {
+    if (!verifyToken(req, res)) {
+      return;
+    }
+  }
+
+  try {
+    const model = req.query.model;
+
+    if (!req.query.gen_date) {
+      res.json({ status: 'fail', reason: 'gen_date missing' });
+      return;
+    }
+
+    // const g = moment(req.query.gen_date).utc();
+    // console.log(g.local().format('YYYY-MM-DDTHH:mm:ss'))
+    // console.log(g.toDate().getTime());
+
+    const gen_date = local
+      ? moment(req.query.gen_date)
+          .utc()
+          .toDate()
+          .getTime()
+      : moment(req.query.gen_date)
+          .toDate()
+          .getTime();
+
+    let sql;
+    if (req.query.start && req.query.end) {
+      const start = moment(req.query.start)
+        .utc()
+        .toDate()
+        .getTime();
+      const end = moment(req.query.end)
+        .utc()
+        .toDate()
+        .getTime();
+
+      sql = `SELECT  s.time, s.forecast, s.stderr,  s.temperature FROM forecasts f , sevendays s
+        WHERE f.time = s.gen_time AND
+        f.time = "${gen_date}" AND
+        s.time BETWEEN "${start}" AND "${end}"
+        ORDER BY s.time DESC`;
+    } else {
+      sql = `SELECT  s.time, s.forecast, s.stderr,  s.temperature FROM forecasts f , sevendays s
+        WHERE f.time = s.gen_time AND
+        f.time = "${gen_date}"
+        ORDER BY s.time DESC`;
+    }
+
+    const db = await getDB();
+    let data = [];
+    const rows = await DbAsync(db, sql);
+
+    data = rows.map(row => {
+      const td = local
+        ? moment(row.time).format('YYYY-MM-DDTHH:mm:ss')
+        : moment(row.time)
+            .utc()
+            .format('YYYY-MM-DDTHH:mm:ss');
+
+      return [td, row.forecast, row.stderr, row.temperature];
+    });
+    // console.log(data);
+    db.close();
+    res.json(data);
+  } catch (error) {
+    // console.log('error:' + error);
+    res.json({ status: 'fail', reason: error });
+  }
+}
+app.get('/forecasts/', onForecastData);
+
+//....................................................................................
+async function onLoadData(req, res) {
+  const local = req.query.local;
+  if (!local) {
+    if (!verifyToken(req, res)) {
+      return;
+    }
+  }
+
+  try {
+    // const model = req.query.model;
+    let sql;
+    if (!(req.query.start && req.query.end)) {
+      res.json({ status: 'fail', reason: 'need start + end' });
+    }
+      const start = local
+        ? moment(req.query.start)
+            .utc()
+            .toDate()
+            .getTime()
+        : moment(req.query.start)
+            .toDate()
+            .getTime();
+
+      const end = local
+        ? moment(req.query.end)
+            .utc()
+            .toDate()
+            .getTime()
+        : moment(req.query.end)
+            .toDate()
+            .getTime();
+
+      sql = `SELECT  time, actual FROM loads
+        WHERE time BETWEEN "${start}" AND "${end}"
+        ORDER BY time DESC`;
+
+
+    const db = await getDB();
+    let data = [];
+    const rows = await DbAsync(db, sql);
+
+    data = rows.map(row => {
+      const td = local
+        ? moment(row.time).format('YYYY-MM-DDTHH:mm:ss')
+        : moment(row.time)
+            .utc()
+            .format('YYYY-MM-DDTHH:mm:ss');
+
+      return [td, row.actual];
+    });
+    // console.log(data);
+    db.close();
+    res.json(data);
+  } catch (error) {
+    // console.log('error:' + error);
+    res.json({ status: 'fail', reason: error });
+  }
+}
+app.get('/loads/', onLoadData);
 
 //....................................................................................
 async function onDefault(req, res) {
