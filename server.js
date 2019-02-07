@@ -423,28 +423,36 @@ async function onLoadData(req, res) {
     if (!(req.query.start && req.query.end)) {
       res.json({ status: 'fail', reason: 'need start + end' });
     }
-      const start = local
-        ? moment(req.query.start)
-            .utc()
-            .toDate()
-            .getTime()
-        : moment(req.query.start)
-            .toDate()
-            .getTime();
+    const start = local
+      ? moment(req.query.start)
+          .utc()
+          .toDate()
+          .getTime()
+      : moment(req.query.start)
+          .toDate()
+          .getTime();
 
-      const end = local
-        ? moment(req.query.end)
-            .utc()
-            .toDate()
-            .getTime()
-        : moment(req.query.end)
-            .toDate()
-            .getTime();
+    const now = local ? moment().utc().startOf('day').toDate().getTime()
+      : moment().startOf('day').toDate().getTime()
 
-      sql = `SELECT  time, actual FROM loads
+    if (start >= now) {
+      res.json([]);
+      return
+    }
+
+
+    const end = local
+      ? moment(req.query.end)
+          .utc()
+          .toDate()
+          .getTime()
+      : moment(req.query.end)
+          .toDate()
+          .getTime();
+
+    sql = `SELECT  time, actual FROM loads
         WHERE time BETWEEN "${start}" AND "${end}"
         ORDER BY time DESC`;
-
 
     const db = await getDB();
     let data = [];
