@@ -432,7 +432,7 @@ async function onLoadData(req, res) {
           .toDate()
           .getTime();
 
-    const now = local ? moment().utc().startOf('day').toDate().getTime()
+    const now = local ? moment().startOf('day').utc().toDate().getTime()
       : moment().startOf('day').toDate().getTime()
 
     if (start >= now) {
