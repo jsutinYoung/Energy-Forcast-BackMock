@@ -363,12 +363,12 @@ async function onForecastData(req, res) {
           .getTime();
 
     let sql;
-    if (req.query.start && req.query.end_date) {
-      const start = moment(req.query.start_date)
+    if (req.query.start_date && req.query.end_date) {
+      const start_date = moment(req.query.start_date)
         .utc()
         .toDate()
         .getTime();
-      const end = moment(req.query.end_date)
+      const end_date = moment(req.query.end_date)
         .utc()
         .toDate()
         .getTime();
