@@ -14,8 +14,8 @@ const SECRET = 'shhhhh';
 app.use(express.static('public'));
 //....................................................................................
 const DbAsync = (db, sql) => {
-  return new Promise(function(resolve, reject) {
-    db.all(sql, function(err, row) {
+  return new Promise(function (resolve, reject) {
+    db.all(sql, function (err, row) {
       if (err) reject(err);
       else resolve(row);
     });
@@ -31,7 +31,10 @@ function verifyToken(req, res) {
     return decoded;
   } catch (err) {
     // console.log(err);
-    res.json({ status: 'fail', reason: 'invalid token' });
+    res.json({
+      status: 'fail',
+      reason: 'invalid token'
+    });
     return null;
   }
 }
@@ -52,6 +55,7 @@ async function startServer() {
 }
 
 startServer();
+
 function randomIntFromInterval(min, max) {
   // min and max included
   return Math.floor(Math.random() * (max - min + 1) + min);
@@ -125,6 +129,8 @@ async function createDB() {
 
     addUser(DB);
 
+    //generate on local time bondary
+    // let gen_date = moment.utc('01-01-2017 00:00:00', 'MM-DD-YYYY hh:mm:s');
     let gen_date = moment('01-01-2017 00:00:00', 'MM-DD-YYYY hh:mm:s').utc();
 
     for (let day = 1; day <= 1095; day++) {
@@ -207,7 +213,10 @@ async function onLogin(req, res) {
 
   try {
     const {
-      user: { email: u, password: p }
+      user: {
+        email: u,
+        password: p
+      }
     } = body;
 
     let found = false;
@@ -223,8 +232,7 @@ async function onLogin(req, res) {
       if (rows && rows.length > 0) {
         const record = rows[0];
         if (p === record.password) {
-          const token = jwt.sign(
-            {
+          const token = jwt.sign({
               exp: Math.floor(Date.now() / 1000) + 60 * 60,
               email: u,
               user_type: record.type
@@ -232,17 +240,25 @@ async function onLogin(req, res) {
             SECRET
           );
 
-          res.json({ Token: token });
+          res.json({
+            Token: token
+          });
           found = true;
         }
       }
     }
 
     if (!found) {
-      res.json({ status: 'fail', description: 'User/Password not matched' });
+      res.json({
+        status: 'fail',
+        description: 'User/Password not matched'
+      });
     }
   } catch (error) {
-    res.json({ status: 'fail', description: error });
+    res.json({
+      status: 'fail',
+      description: error
+    });
   }
 }
 app.post('/oauth/login', jsonParser, onLogin);
@@ -255,7 +271,11 @@ async function onRegister(req, res) {
   const body = req.body;
   try {
     const {
-      user: { email: u, password: p, user_type: t }
+      user: {
+        email: u,
+        password: p,
+        user_type: t
+      }
     } = body;
 
     if (t === 1) {
@@ -274,8 +294,8 @@ async function onRegister(req, res) {
     // stmt.finalize();
     // db.exec('COMMIT');
 
-    const result = await new Promise(function(resolve, reject) {
-      db.run(`INSERT INTO users(email,password,type) VALUES(?,?,?)`, [u, p, t], function(err) {
+    const result = await new Promise(function (resolve, reject) {
+      db.run(`INSERT INTO users(email,password,type) VALUES(?,?,?)`, [u, p, t], function (err) {
         if (err) reject(err);
         else resolve();
       });
@@ -283,13 +303,19 @@ async function onRegister(req, res) {
 
     db.close();
 
-    res.json({ status: 'ok', description: '' });
+    res.json({
+      status: 'ok',
+      description: ''
+    });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT') {
       error = 'email already exists';
     }
     // console.log(error);
-    res.json({ status: 'fail', description: error });
+    res.json({
+      status: 'fail',
+      description: error
+    });
   }
 }
 app.post('/users/create', jsonParser, onRegister);
@@ -328,7 +354,10 @@ async function onComparisonData(req, res) {
     res.json(data);
   } catch (error) {
     // console.log('error:' + error);
-    res.json({ status: 'fail', reason: error });
+    res.json({
+      status: 'fail',
+      reason: error
+    });
   }
 }
 app.get('/forecasts/comparisons', onComparisonData);
@@ -345,7 +374,10 @@ async function onForecastData(req, res) {
     const model = req.query.model;
 
     if (!req.query.forecast_date) {
-      res.json({ status: 'fail', reason: 'gen_date missing' });
+      res.json({
+        status: 'fail',
+        reason: 'gen_date missing'
+      });
       return;
     }
 
@@ -353,25 +385,33 @@ async function onForecastData(req, res) {
     // console.log(g.local().format('YYYY-MM-DDTHH:mm:ss'))
     // console.log(g.toDate().getTime());
 
-    const gen_date = local
-      ? moment(req.query.forecast_date)
-          .utc()
-          .toDate()
-          .getTime()
-      : moment(req.query.forecast_date)
-          .toDate()
-          .getTime();
+    const gen_date = local ?
+      moment(req.query.forecast_date)
+      .toDate()
+      .getTime() :
+      moment.utc(req.query.forecast_date)
+      .toDate()
+      .getTime();
 
     let sql;
     if (req.query.start_date && req.query.end_date) {
-      const start_date = moment(req.query.start_date)
-        .utc()
+      const start_date = local ?
+        moment(req.query.start_date)
         .toDate()
-        .getTime();
-      const end_date = moment(req.query.end_date)
-        .utc()
+        .getTime() :
+        moment.utc(req.query.start_date)
         .toDate()
-        .getTime();
+        .getTime()
+
+
+      const end_date = local ?
+        moment(req.query.end_date)
+        .toDate()
+        .getTime() :
+        moment.utc(req.query.end_date)
+        .toDate()
+        .getTime()
+
 
       sql = `SELECT  s.time, s.forecast, s.stderr,  s.temperature FROM forecasts f , sevendays s
         WHERE f.time = s.gen_time AND
@@ -390,11 +430,9 @@ async function onForecastData(req, res) {
     const rows = await DbAsync(db, sql);
 
     data = rows.map(row => {
-      const td = local
-        ? moment(row.time).format('YYYY-MM-DDTHH:mm:ss')
-        : moment(row.time)
-            .utc()
-            .format('YYYY-MM-DDTHH:mm:ss');
+      const td = local ?
+        moment(row.time).local().format('YYYY-MM-DDTHH:mm:ss') :
+        moment(row.time).format('YYYY-MM-DDTHH:mm:ss');
 
       return [td, row.forecast, row.stderr, row.temperature];
     });
@@ -403,7 +441,10 @@ async function onForecastData(req, res) {
     res.json(data);
   } catch (error) {
     // console.log('error:' + error);
-    res.json({ status: 'fail', reason: error });
+    res.json({
+      status: 'fail',
+      reason: error
+    });
   }
 }
 app.get('/demand/forecast/', onForecastData);
@@ -421,19 +462,21 @@ async function onLoadData(req, res) {
     // const model = req.query.model;
     let sql;
     if (!(req.query.start_date && req.query.end_date)) {
-      res.json({ status: 'fail', reason: 'need start + end' });
+      res.json({
+        status: 'fail',
+        reason: 'need start + end'
+      });
     }
-    const start = local
-      ? moment(req.query.start_date)
-          .utc()
-          .toDate()
-          .getTime()
-      : moment(req.query.start_date)
-          .toDate()
-          .getTime();
+    const start = local ?
+      moment(req.query.start_date)
+      .toDate()
+      .getTime() :
+      moment.utc(req.query.start_date)
+      .toDate()
+      .getTime();
 
-    const now = local ? moment().startOf('day').utc().toDate().getTime()
-      : moment().startOf('day').toDate().getTime()
+    const now = local ? moment().startOf('day').utc().toDate().getTime() :
+      moment().startOf('day').toDate().getTime()
 
     if (start >= now) {
       res.json([]);
@@ -441,14 +484,13 @@ async function onLoadData(req, res) {
     }
 
 
-    const end = local
-      ? moment(req.query.end_date)
-          .utc()
-          .toDate()
-          .getTime()
-      : moment(req.query.end_date)
-          .toDate()
-          .getTime();
+    const end = local ?
+      moment(req.query.end_date)
+      .toDate()
+      .getTime() :
+      moment.utc(req.query.end_date)
+      .toDate()
+      .getTime();
 
     sql = `SELECT  time, actual FROM loads
         WHERE time BETWEEN "${start}" AND "${end}"
@@ -459,11 +501,9 @@ async function onLoadData(req, res) {
     const rows = await DbAsync(db, sql);
 
     data = rows.map(row => {
-      const td = local
-        ? moment(row.time).format('YYYY-MM-DDTHH:mm:ss')
-        : moment(row.time)
-            .utc()
-            .format('YYYY-MM-DDTHH:mm:ss');
+      const td = local ?
+        moment(row.time).local().format('YYYY-MM-DDTHH:mm:ss') :
+        moment(row.time).format('YYYY-MM-DDTHH:mm:ss');
 
       return [td, row.actual];
     });
@@ -472,7 +512,10 @@ async function onLoadData(req, res) {
     res.json(data);
   } catch (error) {
     // console.log('error:' + error);
-    res.json({ status: 'fail', reason: error });
+    res.json({
+      status: 'fail',
+      reason: error
+    });
   }
 }
 app.get('/demand/', onLoadData);
