@@ -344,7 +344,7 @@ async function onForecastData(req, res) {
   try {
     const model = req.query.model;
 
-    if (!req.query.gen_date) {
+    if (!req.query.forecast_date) {
       res.json({ status: 'fail', reason: 'gen_date missing' });
       return;
     }
@@ -354,21 +354,21 @@ async function onForecastData(req, res) {
     // console.log(g.toDate().getTime());
 
     const gen_date = local
-      ? moment(req.query.gen_date)
+      ? moment(req.query.forecast_date)
           .utc()
           .toDate()
           .getTime()
-      : moment(req.query.gen_date)
+      : moment(req.query.forecast_date)
           .toDate()
           .getTime();
 
     let sql;
-    if (req.query.start && req.query.end) {
-      const start = moment(req.query.start)
+    if (req.query.start && req.query.end_date) {
+      const start = moment(req.query.start_date)
         .utc()
         .toDate()
         .getTime();
-      const end = moment(req.query.end)
+      const end = moment(req.query.end_date)
         .utc()
         .toDate()
         .getTime();
@@ -376,7 +376,7 @@ async function onForecastData(req, res) {
       sql = `SELECT  s.time, s.forecast, s.stderr,  s.temperature FROM forecasts f , sevendays s
         WHERE f.time = s.gen_time AND
         f.time = "${gen_date}" AND
-        s.time BETWEEN "${start}" AND "${end}"
+        s.time BETWEEN "${start_date}" AND "${end_date}"
         ORDER BY s.time DESC`;
     } else {
       sql = `SELECT  s.time, s.forecast, s.stderr,  s.temperature FROM forecasts f , sevendays s
@@ -406,7 +406,7 @@ async function onForecastData(req, res) {
     res.json({ status: 'fail', reason: error });
   }
 }
-app.get('/forecasts/', onForecastData);
+app.get('/demand/forecast/', onForecastData);
 
 //....................................................................................
 async function onLoadData(req, res) {
@@ -420,15 +420,15 @@ async function onLoadData(req, res) {
   try {
     // const model = req.query.model;
     let sql;
-    if (!(req.query.start && req.query.end)) {
+    if (!(req.query.start_date && req.query.end_date)) {
       res.json({ status: 'fail', reason: 'need start + end' });
     }
     const start = local
-      ? moment(req.query.start)
+      ? moment(req.query.start_date)
           .utc()
           .toDate()
           .getTime()
-      : moment(req.query.start)
+      : moment(req.query.start_date)
           .toDate()
           .getTime();
 
@@ -442,11 +442,11 @@ async function onLoadData(req, res) {
 
 
     const end = local
-      ? moment(req.query.end)
+      ? moment(req.query.end_date)
           .utc()
           .toDate()
           .getTime()
-      : moment(req.query.end)
+      : moment(req.query.end_date)
           .toDate()
           .getTime();
 
@@ -475,7 +475,7 @@ async function onLoadData(req, res) {
     res.json({ status: 'fail', reason: error });
   }
 }
-app.get('/loads/', onLoadData);
+app.get('/demand/', onLoadData);
 
 //....................................................................................
 async function onDefault(req, res) {
