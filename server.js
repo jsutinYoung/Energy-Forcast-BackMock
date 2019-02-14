@@ -6,14 +6,15 @@ const jwt = require('jsonwebtoken');
 const sampleData = require('./data/week_data.json');
 const moment = require('moment');
 const sqlite3 = require('sqlite3').verbose();
-const cors = require('cors')
+const cors = require('cors');
 
 const app = express();
 const jsonParser = bodyParser.json();
 const SECRET = 'shhhhh';
 
 app.use(cors());
-
+// app.use(bodyParser);
+// app.use(app.router);
 app.use(express.static('public'));
 //....................................................................................
 const DbAsync = (db, sql) => {
@@ -105,7 +106,7 @@ async function onLogin(req, res) {
   } catch (error) {
     res.json({
       status: 'fail',
-      description: error
+      description: error.message
     });
   }
 }
@@ -127,9 +128,9 @@ async function onRegister(req, res) {
     }
 
     // check if one is a mananger
-    if (user.user_type > 2) {
-      throw 'no permission';
-    }
+    // if (t > 2) {
+    //   throw 'no permission';
+    // }
 
     const db = await getDB(sqlite3.OPEN_READWRITE);
     // db.exec('BEGIN');
@@ -153,12 +154,12 @@ async function onRegister(req, res) {
     });
   } catch (error) {
     if (error.code === 'SQLITE_CONSTRAINT') {
-      error = 'email already exists';
+      error.message = 'email already exists';
     }
     // console.log(error);
     res.json({
       status: 'fail',
-      description: error
+      description: error.message
     });
   }
 }
@@ -200,7 +201,7 @@ async function onComparisonData(req, res) {
     // console.log('error:' + error);
     res.json({
       status: 'fail',
-      reason: error
+      reason: error.message
     });
   }
 }
@@ -284,7 +285,7 @@ async function onForecastData(req, res) {
   } catch (error) {
     res.json({
       status: 'fail',
-      reason: error
+      reason: error.message
     });
   }
 }
@@ -364,12 +365,51 @@ async function onLoadData(req, res) {
   } catch (error) {
     res.json({
       status: 'fail',
-      reason: error
+      reason: error.message
     });
   }
 }
 app.get('/demand/', onLoadData);
+//....................................................................................
+async function onUserUpdate(req, res) {
+  if (!verifyToken(req, res)) {
+    return;
+  }
 
+  const body = req.body;
+  try {
+    const {
+      email: u,
+      update: { password: p }
+    } = body;
+
+    const db = await getDB(sqlite3.OPEN_READWRITE);
+
+    const result = await new Promise(function(resolve, reject) {
+      db.run(`UPDATE users SET password=? WHERE email=?`, [p, u], function(err) {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+
+    db.close();
+
+    res.json({
+      status: 'ok',
+      description: ''
+    });
+  } catch (error) {
+    if (error.code === 'SQLITE_CONSTRAINT') {
+      error.message = 'email already exists';
+    }
+    // console.log(error);
+    res.json({
+      status: 'fail',
+      description: error.message
+    });
+  }
+}
+app.put('/users/update', jsonParser, onUserUpdate);
 //....................................................................................
 async function onDefault(req, res) {
   res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
