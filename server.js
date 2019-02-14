@@ -6,10 +6,13 @@ const jwt = require('jsonwebtoken');
 const sampleData = require('./data/week_data.json');
 const moment = require('moment');
 const sqlite3 = require('sqlite3').verbose();
+const cors = require('cors')
 
 const app = express();
 const jsonParser = bodyParser.json();
 const SECRET = 'shhhhh';
+
+app.use(cors());
 
 app.use(express.static('public'));
 //....................................................................................
