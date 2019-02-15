@@ -411,6 +411,47 @@ async function onUserUpdate(req, res) {
 }
 app.put('/users/update', jsonParser, onUserUpdate);
 //....................................................................................
+async function onDeleteUser(req, res) {
+  // if (!verifyToken(req, res)) {
+  //   return;
+  // }
+
+  try {
+
+    const id = req.param("id");
+    if (!id) {
+      throw { message: "No user specified" };
+    }
+
+    const db = await getDB(sqlite3.OPEN_READWRITE);
+
+    const result = await new Promise(function(resolve, reject) {
+      db.run(`DELETE FROM users WHERE email=? AND type<>1`, [id], function(err) {
+        if (err) reject(err);
+        else resolve(this.changes);
+      });
+    });
+
+    db.close();
+    if (!result) {
+      throw { message: "user not found" };
+    }
+
+    res.json({
+      status: 'ok',
+      description: ''
+    });
+  } catch (error) {
+    res.json({
+      status: 'fail',
+      description: error.message
+    });
+  }
+}
+
+app.delete('/users/delete/:id', jsonParser, onDeleteUser);
+
+//....................................................................................
 async function onDefault(req, res) {
   res.sendFile(path.resolve(__dirname, 'public', 'index.html'));
 }
