@@ -1,7 +1,7 @@
 const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
-const userList = require('./secrete/users.json');
+// const userList = require('./secrete/users.json');
 const jwt = require('jsonwebtoken');
 const sampleData = require('./data/week_data.json');
 const moment = require('moment');
@@ -208,11 +208,9 @@ async function onComparisonData(req, res) {
 app.get('/forecasts/comparisons', onComparisonData);
 //....................................................................................
 async function onForecastData(req, res) {
-  const local = req.query.local;
-  if (!local) {
-    if (!verifyToken(req, res)) {
-      return;
-    }
+  const utc = req.query.utc;
+  if (!verifyToken(req, res)) {
+    return;
   }
 
   try {
@@ -226,7 +224,8 @@ async function onForecastData(req, res) {
       return;
     }
 
-    const gen_date = local
+    //default is utc
+    const gen_date = !utc
       ? moment(req.query.forecast_date)
           .toDate()
           .getTime()
@@ -237,7 +236,7 @@ async function onForecastData(req, res) {
 
     let sql;
     if (req.query.start_date && req.query.end_date) {
-      const start_date = local
+      const start_date = !utc
         ? moment(req.query.start_date)
             .toDate()
             .getTime()
@@ -246,7 +245,7 @@ async function onForecastData(req, res) {
             .toDate()
             .getTime();
 
-      const end_date = local
+      const end_date = !utc
         ? moment(req.query.end_date)
             .toDate()
             .getTime()
@@ -272,7 +271,7 @@ async function onForecastData(req, res) {
     const rows = await DbAsync(db, sql);
 
     data = rows.map(row => {
-      const td = local
+      const td = !utc
         ? moment(row.time)
             .local()
             .format('YYYY-MM-DDTHH:mm:ss')
@@ -293,11 +292,9 @@ app.get('/demand/forecast/', onForecastData);
 
 //....................................................................................
 async function onLoadData(req, res) {
-  const local = req.query.local;
-  if (!local) {
-    if (!verifyToken(req, res)) {
-      return;
-    }
+  const utc = req.query.utc;
+  if (!verifyToken(req, res)) {
+    return;
   }
 
   try {
@@ -309,7 +306,7 @@ async function onLoadData(req, res) {
         reason: 'need start + end'
       });
     }
-    const start = local
+    const start = !utc
       ? moment(req.query.start_date)
           .toDate()
           .getTime()
@@ -318,23 +315,23 @@ async function onLoadData(req, res) {
           .toDate()
           .getTime();
 
-    const now = local
+    const now = !utc
       ? moment()
-          .startOf('day')
-          .utc()
-          .toDate()
-          .getTime()
+        .startOf('day')
+        .toDate()
+        .getTime()
       : moment()
-          .startOf('day')
-          .toDate()
-          .getTime();
+        .startOf('day')
+        .utc()
+        .toDate()
+        .getTime();
 
     if (start >= now) {
       res.json([]);
       return;
     }
 
-    const end = local
+    const end = !utc
       ? moment(req.query.end_date)
           .toDate()
           .getTime()
@@ -352,7 +349,7 @@ async function onLoadData(req, res) {
     const rows = await DbAsync(db, sql);
 
     data = rows.map(row => {
-      const td = local
+      const td = !utc
         ? moment(row.time)
             .local()
             .format('YYYY-MM-DDTHH:mm:ss')
