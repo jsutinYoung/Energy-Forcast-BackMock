@@ -8,9 +8,19 @@ const moment = require('moment');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 
+// var fs = require('fs')
+// var https = require('https')
+// const certOptions = {
+//   key: fs.readFileSync(path.resolve('./cert/server.key')),
+//   cert: fs.readFileSync(path.resolve('./cert/server.crt'))
+// }
+// const server = https.createServer(certOptions, app).listen(443)
+
 const app = express();
 const jsonParser = bodyParser.json();
 const SECRET = 'shhhhh';
+
+
 
 app.use(cors());
 // app.use(bodyParser);
