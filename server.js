@@ -8,18 +8,19 @@ const moment = require('moment');
 const sqlite3 = require('sqlite3').verbose();
 const cors = require('cors');
 
-// var fs = require('fs')
-// var https = require('https')
-// const certOptions = {
-//   key: fs.readFileSync(path.resolve('./cert/server.key')),
-//   cert: fs.readFileSync(path.resolve('./cert/server.crt'))
-// }
-// const server = https.createServer(certOptions, app).listen(443)
 
 const app = express();
 const jsonParser = bodyParser.json();
 const SECRET = 'shhhhh';
 
+
+var fs = require('fs')
+var https = require('https')
+var http = require('http');
+const certOptions = {
+  key: fs.readFileSync('cert/server.key','utf8'),
+  cert: fs.readFileSync('cert/server.crt','utf8')
+}
 
 
 app.use(cors());
@@ -64,7 +65,11 @@ async function getDB(mode) {
 }
 //....................................................................................
 async function startServer() {
-  app.listen(8000, () => console.log('express listening on port 8000...'));
+  const httpServer = http.createServer(app);
+  httpServer.listen(8000,() => console.log('express listening on port 8000...'));
+
+  const httpsServer = https.createServer(certOptions, app);
+  httpsServer.listen(8443,() => console.log('express listening on port 8443...'));
 }
 
 startServer();
