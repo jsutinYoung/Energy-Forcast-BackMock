@@ -25,6 +25,10 @@ const certOptions = {
 
 app.use(cors());
 // app.use(bodyParser);
+app.use(bodyParser.urlencoded({
+  extended: true
+}));
+app.use(bodyParser.json());
 // app.use(app.router);
 app.use(express.static('public'));
 //....................................................................................
@@ -80,7 +84,7 @@ async function onLogin(req, res) {
 
   try {
     const {
-      user: { email: u, password: p }
+      email: u, password: p
     } = body;
 
     let found = false;
@@ -126,7 +130,7 @@ async function onLogin(req, res) {
     });
   }
 }
-app.post('/oauth/login', jsonParser, onLogin);
+app.post('/users/login', jsonParser, onLogin);
 //....................................................................................
 async function onRegister(req, res) {
   if (!verifyToken(req, res)) {
@@ -136,7 +140,7 @@ async function onRegister(req, res) {
   const body = req.body;
   try {
     const {
-      user: { email: u, password: p, user_type: t }
+      email: u, password: p, user_type: t
     } = body;
 
     if (t === 1) {
@@ -179,7 +183,7 @@ async function onRegister(req, res) {
     });
   }
 }
-app.post('/users/create', jsonParser, onRegister);
+app.post('/users/register', jsonParser, onRegister);
 //....................................................................................
 async function onComparisonData(req, res) {
   if (!verifyToken(req, res)) {
@@ -233,12 +237,19 @@ async function onForecastData(req, res) {
     // const model = req.query.model;
 
     if (!req.query.forecast_date) {
+      res.status(400);
       res.json({
         status: 'fail',
-        reason: 'gen_date missing'
+        reason: 'forecast_date missing'
       });
       return;
     }
+
+    // const {
+    //   timezone: tz,
+    // } = req.body;
+
+    // console.log(tz);
 
     //default is utc
     const gen_date = !utc
@@ -279,7 +290,7 @@ async function onForecastData(req, res) {
       sql = `SELECT  s.time, s.forecast, s.stderr,  s.temperature FROM forecasts f , sevendays s
         WHERE f.time = s.gen_time AND
         f.time = "${gen_date}"
-        ORDER BY s.time DESC`;
+        ORDER BY s.time ASC`;
     }
 
     const db = await getDB();
@@ -296,8 +307,13 @@ async function onForecastData(req, res) {
       return [td, row.forecast, row.stderr, row.temperature];
     });
     db.close();
-    res.json(data);
+    res.json({
+        status: 'ok',
+        data: data
+      }
+    );
   } catch (error) {
+    res.status(400);
     res.json({
       status: 'fail',
       reason: error.message
@@ -317,6 +333,7 @@ async function onLoadData(req, res) {
     // const model = req.query.model;
     let sql;
     if (!(req.query.start_date && req.query.end_date)) {
+      res.status(400);
       res.json({
         status: 'fail',
         reason: 'need start + end'
@@ -358,7 +375,7 @@ async function onLoadData(req, res) {
 
     sql = `SELECT  time, actual FROM loads
         WHERE time BETWEEN "${start}" AND "${end}"
-        ORDER BY time DESC`;
+        ORDER BY time ASC`;
 
     const db = await getDB();
     let data = [];
@@ -374,15 +391,19 @@ async function onLoadData(req, res) {
       return [td, row.actual];
     });
     db.close();
-    res.json(data);
+    res.json({
+      status: 'ok',
+      data: data}
+    );
   } catch (error) {
+    res.status(400);
     res.json({
       status: 'fail',
       reason: error.message
     });
   }
 }
-app.get('/demand/', onLoadData);
+app.get('/demand/',onLoadData);
 //....................................................................................
 async function onUserUpdate(req, res) {
   if (!verifyToken(req, res)) {
@@ -393,7 +414,7 @@ async function onUserUpdate(req, res) {
   try {
     const {
       email: u,
-      update: { password: p }
+      password: p
     } = body;
 
     const db = await getDB(sqlite3.OPEN_READWRITE);
@@ -425,9 +446,9 @@ async function onUserUpdate(req, res) {
 app.put('/users/update', jsonParser, onUserUpdate);
 //....................................................................................
 async function onDeleteUser(req, res) {
-  // if (!verifyToken(req, res)) {
-  //   return;
-  // }
+  if (!verifyToken(req, res)) {
+    return;
+  }
 
   try {
 
