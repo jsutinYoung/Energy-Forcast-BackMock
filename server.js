@@ -443,7 +443,7 @@ async function onUserUpdate(req, res) {
     });
   }
 }
-app.put('/users/update', jsonParser, onUserUpdate);
+app.put('/users/update/:id', jsonParser, onUserUpdate);
 //....................................................................................
 async function onDeleteUser(req, res) {
   if (!verifyToken(req, res)) {
